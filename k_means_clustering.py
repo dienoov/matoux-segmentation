@@ -30,6 +30,7 @@ def k_means_clustering(images):
     ch_label = "+".join(channels[c] for c in active_chs) if active_chs else "—"
 
     extract_contour = st.toggle("Extract Contour", value=True, key="kmeans_contour")
+    overlay_contour = st.toggle("Overlay Contour", value=False, key="kmeans_overlay")
 
     if selected_clusters:
         cols = st.columns(len(selected_clusters) + 1)
@@ -79,18 +80,24 @@ def k_means_clustering(images):
                     center_cluster = np.bincount(crop.flatten()).argmax()
                     image_masked = (labels == center_cluster).astype(np.uint8) * 255
 
-                    if extract_contour:
+                    if extract_contour or overlay_contour:
                         contours, _ = cv2.findContours(
                             image_masked, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
                         )
-                        image_masked = np.zeros_like(image_masked)
-                        if contours:
-                            best_contour = max(contours, key=cv2.contourArea)
-                            cv2.drawContours(image_masked, [best_contour], -1, 255, cv2.FILLED)
-                    else:
-                        image_masked = cv2.cvtColor(image_masked, cv2.COLOR_GRAY2BGR)
+                        largest_contour = max(contours, key=cv2.contourArea) if contours else None
 
-                    cols[j + 1].image(image_masked, width="stretch")
+                        if overlay_contour:
+                            image_overlay = image_rgb.copy()
+                            if largest_contour is not None:
+                                cv2.drawContours(image_overlay, [largest_contour], -1, (0, 255, 0), thickness=8)
+                            cols[j + 1].image(image_overlay, width="stretch")
+                        else:
+                            image_masked = np.zeros_like(image_masked)
+                            if largest_contour is not None:
+                                cv2.drawContours(image_masked, [largest_contour], -1, 255, cv2.FILLED)
+                            cols[j + 1].image(image_masked, width="stretch")
+                    else:
+                        cols[j + 1].image(cv2.cvtColor(image_masked, cv2.COLOR_GRAY2BGR), width="stretch")
 
             except Exception as e:
                 st.error(f"Failed to process `{image}`: {e}")
